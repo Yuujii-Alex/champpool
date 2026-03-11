@@ -9,8 +9,6 @@ export const RiotAccountSchema = z.object({
 export type RiotAccount = z.infer<typeof RiotAccountSchema>;
 
 export const RiotSummonerSchema = z.object({
-  accountId: z.string(),
-  id: z.string(),
   puuid: z.string().length(78),
   profileIconId: z.number(),
   revisionDate: z.number(),
