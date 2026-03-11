@@ -1,0 +1,20 @@
+import { mapping } from "@/lib/constants/constants";
+import { fetchRiotJson } from "@/lib/riot/fetchRiotJson";
+import { RiotMasterySchema } from "@/lib/types/riotTypes";
+
+export async function GET(
+  _request: Request,
+  { params }: { params: { platform: string; puuid: string } },
+) {
+  const { platform, puuid } = params;
+
+  const normalizedPlatform = (platform || "").toUpperCase().trim();
+  const mappedPlatform =
+    mapping[normalizedPlatform]?.platform ?? normalizedPlatform.toLowerCase();
+
+  const encodedPuuid = encodeURIComponent(puuid);
+
+  const url = `https://${mappedPlatform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${encodedPuuid}`;
+
+  return fetchRiotJson(url, RiotMasterySchema);
+}
