@@ -4,9 +4,9 @@ import { RiotMatchSchema } from "@/lib/types/riotTypes";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { regional: string; id: string } },
+  { params }: { params: Promise<{ regional: string; id: string }> },
 ) {
-  const { regional, id } = params;
+  const { regional, id } = await params;
 
   const normalizedRegion = (regional || "").toUpperCase().trim();
     const mappedRegion =

@@ -4,9 +4,9 @@ import { RiotAccountSchema } from "@/lib/types/riotTypes";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { region: string; gameName: string; tagLine: string } },
+  { params }: { params: Promise<{ region: string; gameName: string; tagLine: string }> },
 ) {
-  const { region, gameName, tagLine } = params;
+  const { region, gameName, tagLine } = await params;
 
   const normalizedRegion = (region || "").toUpperCase().trim();
   const mappedRegion =

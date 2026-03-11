@@ -4,9 +4,9 @@ import { RiotMasterySchema } from "@/lib/types/riotTypes";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { platform: string; puuid: string } },
+  { params }: { params: Promise<{ platform: string; puuid: string }> },
 ) {
-  const { platform, puuid } = params;
+  const { platform, puuid } = await params;
 
   const normalizedPlatform = (platform || "").toUpperCase().trim();
   const mappedPlatform =

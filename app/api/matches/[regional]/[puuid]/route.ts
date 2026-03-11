@@ -4,9 +4,9 @@ import { RiotMatchIdsSchema } from "@/lib/types/riotTypes";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { regional: string; puuid: string } },
+  { params }: { params: Promise<{ regional: string; puuid: string }> },
 ) {
-  const { regional, puuid } = params;
+  const { regional, puuid } = await params;
 
   const normalizedRegion = (regional || "").toUpperCase().trim();
     const mappedRegion =
@@ -14,7 +14,7 @@ export async function GET(
 
   const encodedPuuid = encodeURIComponent(puuid);
 
-  const url = `https://${mappedRegion}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodedPuuid}/ids?start=0&count=50&type=ranked`;
+  const url = `https://${mappedRegion}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodedPuuid}/ids?start=0&count=100&type=ranked`;
 
   return fetchRiotJson(url, RiotMatchIdsSchema);
 }
