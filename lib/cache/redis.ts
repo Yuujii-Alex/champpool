@@ -3,7 +3,7 @@ import { Redis } from "@upstash/redis";
 const DEFAULT_ANALYSIS_CACHE_TTL_SECONDS = 300;
 const MAX_ANALYSIS_CACHE_TTL_SECONDS = 3600;
 
-let cachedRedisClient: Redis | null | undefined;
+let cachedRedisClient: Redis | undefined;
 
 function parseTtlSeconds(rawValue: string | undefined): number {
   const parsed = Number(rawValue ?? DEFAULT_ANALYSIS_CACHE_TTL_SECONDS);
@@ -16,19 +16,19 @@ function parseTtlSeconds(rawValue: string | undefined): number {
 }
 
 function getRedisClient(): Redis | null {
-  if (cachedRedisClient !== undefined) {
+  if (cachedRedisClient) {
     return cachedRedisClient;
   }
 
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
 
   if (!url || !token) {
-    cachedRedisClient = null;
-    return cachedRedisClient;
+    return null;
   }
 
   cachedRedisClient = new Redis({ url, token });
+
   return cachedRedisClient;
 }
 

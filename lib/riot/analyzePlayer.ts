@@ -14,15 +14,18 @@ import {
 } from "@/lib/types/riotTypes";
 import { z } from "zod";
 
-const MAX_MATCHES_TO_ANALYZE = 50;
-const MATCH_IDS_TO_FETCH = 100;
+const MAX_MATCHES_TO_ANALYZE = 20;
+const MATCH_IDS_PAGE_SIZE = 10;
 const MAX_MATCH_HISTORY_PAGES = 5;
+const MATCH_DETAIL_CONCURRENCY = 5;
 const SECONDARY_ROLE_MIN_GAMES = 8;
 const CLEAR_MAIN_ROLE_SHARE = 0.6;
 const HIGH_MASTERY_POINTS = 50000;
 const ALL_SUPPORTED_ROLES: SupportedRole[] = ["TOP", "JUNGLE", "MIDDLE", "ADC", "SUPPORT"];
 const SOLO_QUEUE_ID = 420;
 const ANALYSIS_CACHE_KEY_VERSION = "v1";
+
+const inFlightAnalyses = new Map<string, Promise<PlayerAnalysisResult>>();
 
 const DDragonVersionsSchema = z.array(z.string()).min(1);
 const ChampionCatalogSchema = z.object({
@@ -468,46 +471,65 @@ function getAnalysisCacheKey(input: { region: string; gameName: string; tagLine:
   );
 }
 
+function chunkItems<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+}
+
 async function fetchRecentSoloQueueMatches(regionalHost: string, encodedPuuid: string): Promise<RiotMatch[]> {
   const soloQueueMatches: RiotMatch[] = [];
 
   for (let pageIndex = 0; pageIndex < MAX_MATCH_HISTORY_PAGES; pageIndex += 1) {
-    const start = pageIndex * MATCH_IDS_TO_FETCH;
+    const remainingMatches = MAX_MATCHES_TO_ANALYZE - soloQueueMatches.length;
+
+    if (remainingMatches <= 0) {
+      break;
+    }
+
+    const count = Math.min(MATCH_IDS_PAGE_SIZE, remainingMatches);
+    const start = pageIndex * MATCH_IDS_PAGE_SIZE;
     const matchIdsUrl =
       `https://${regionalHost}.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodedPuuid}/ids` +
-      `?start=${start}&count=${MATCH_IDS_TO_FETCH}&type=ranked`;
+      `?start=${start}&count=${count}&queue=${SOLO_QUEUE_ID}&type=ranked`;
     const matchIds = await fetchRiotData(matchIdsUrl, RiotMatchIdsSchema);
 
     if (matchIds.length === 0) {
       break;
     }
 
-    const matchDetailResults = await Promise.allSettled(
-      matchIds.map((matchId) =>
-        fetchRiotData(
-          `https://${regionalHost}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
-          RiotMatchSchema,
+    for (const matchIdChunk of chunkItems(matchIds, MATCH_DETAIL_CONCURRENCY)) {
+      const matchDetailResults = await Promise.allSettled(
+        matchIdChunk.map((matchId) =>
+          fetchRiotData(
+            `https://${regionalHost}.api.riotgames.com/lol/match/v5/matches/${encodeURIComponent(matchId)}`,
+            RiotMatchSchema,
+          ),
         ),
-      ),
-    );
+      );
 
-    for (const result of matchDetailResults) {
-      if (result.status !== "fulfilled") {
-        continue;
-      }
+      for (const result of matchDetailResults) {
+        if (result.status !== "fulfilled") {
+          continue;
+        }
 
-      if (result.value.info.queueId !== SOLO_QUEUE_ID) {
-        continue;
-      }
+        if (result.value.info.queueId !== SOLO_QUEUE_ID) {
+          continue;
+        }
 
-      soloQueueMatches.push(result.value);
+        soloQueueMatches.push(result.value);
 
-      if (soloQueueMatches.length >= MAX_MATCHES_TO_ANALYZE) {
-        return soloQueueMatches;
+        if (soloQueueMatches.length >= MAX_MATCHES_TO_ANALYZE) {
+          return soloQueueMatches;
+        }
       }
     }
 
-    if (matchIds.length < MATCH_IDS_TO_FETCH) {
+    if (matchIds.length < count) {
       break;
     }
   }
@@ -692,10 +714,26 @@ export async function analyzePlayer(input: {
     return cachedResult;
   }
 
-  const result = await analyzePlayerUncached(input);
-  await setCachedJson(cacheKey, result, getAnalysisCacheTtlSeconds());
+  const existingAnalysis = inFlightAnalyses.get(cacheKey);
 
-  return result;
+  if (existingAnalysis) {
+    return existingAnalysis;
+  }
+
+  const pendingAnalysis = (async () => {
+    const result = await analyzePlayerUncached(input);
+    await setCachedJson(cacheKey, result, getAnalysisCacheTtlSeconds());
+    return result;
+  })();
+
+  inFlightAnalyses.set(cacheKey, pendingAnalysis);
+
+  try {
+    return await pendingAnalysis;
+  } finally {
+    inFlightAnalyses.delete(cacheKey);
+  }
+
 }
 
 export type { ChampionSummary, PlayerAnalysisResult, Recommendation, RoleAnalysis };
