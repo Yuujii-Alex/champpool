@@ -8,6 +8,7 @@ export default function SiteFooter() {
         <p>
           This is a student project built to practice software engineering and product development. The recommendations are simple heuristics based on recent data, so they may be inaccurate, incomplete, or not suitable for every player.
         </p>
+        <p>Copyright (c) 2026 Alex Guo</p>
       </div>
     </footer>
   );
