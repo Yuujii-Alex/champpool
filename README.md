@@ -15,6 +15,7 @@ cp .env.example .env.local
 Required environment variable:
 
 - `RIOT_API_KEY`
+- The one used on my vercel page only works for 24 hours!
 
 Optional Redis cache variables:
 
